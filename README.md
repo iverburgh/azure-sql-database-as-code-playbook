@@ -125,6 +125,8 @@ From the same monorepo, each on its own:
   Service Bus message settlement in Azure Functions: complete, abandon or dead-letter.
 - [Azure SQL disaster recovery](https://github.com/iverburgh/azure-sql-disaster-recovery-playbook) —
   a guided point-in-time restore of an Azure SQL database after a disaster.
+- [Azure DevOps environments as code](https://github.com/iverburgh/azure-devops-environments-as-code-playbook) —
+  the environments and approvals that guard a database publish, including a separate data environment.
 
 ## License
 
