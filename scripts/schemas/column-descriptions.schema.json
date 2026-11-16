@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "column-descriptions.schema.json",
+  "title": "Column descriptions",
+  "description": "Descriptions of every table and column of the schema project. scripts/Update-ColumnDescriptions.ps1 turns them into MS_Description extended properties and checks them against the built dacpac.",
+  "type": "object",
+  "required": ["standardColumns", "excludedTables", "tables"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "standardColumns": {
+      "description": "Proposed description for columns that many tables have, such as CreatedAt.",
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "excludedTables": {
+      "description": "Tables that need no descriptions, written as Schema.Table.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[^.]+\\.[^.]+$" }
+    },
+    "tables": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[^.]+\\.[^.]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description", "columns"],
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "columns": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

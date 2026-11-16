@@ -1,0 +1,23 @@
+{
+  "$schema": "../scripts/schemas/environments.schema.json",
+  "environments": {
+    "Development": {
+      "seedConfiguration": "Development",
+      "testData": true,
+      "allowDropAll": true,
+      "protected": false
+    },
+    "Test": {
+      "seedConfiguration": "Test",
+      "testData": true,
+      "allowDropAll": false,
+      "protected": false
+    },
+    "Production": {
+      "seedConfiguration": "Production",
+      "testData": false,
+      "allowDropAll": false,
+      "protected": true
+    }
+  }
+}

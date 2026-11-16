@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.Build.Sql">
+  <!--
+    Test data for short-lived and shared test environments. Never published to an environment that
+    is marked "protected" in database/environments.json; scripts/Publish-Database.ps1 refuses that.
+  -->
+  <PropertyGroup>
+    <Name>Shop.Database.TestData</Name>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Build Remove="**\*.sql" />
+    <PostDeploy Include="Scripts\Script.PostDeployment.sql" />
+    <None Include="Scripts\**\*.sql" Exclude="Scripts\Script.PostDeployment.sql" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,117 @@
+# Rehearses the schema update against a copy of production before the production stage starts.
+#
+#   create   New-RehearsalDatabase.ps1 copies production to <db>-rehearsal-<build id>
+#   rehearse Invoke-SchemaRehearsal.ps1 deploys the candidate migrations and schema to the copy,
+#            and compares the captured (CDC) columns with the released baseline
+#   remove   Remove-RehearsalDatabase.ps1 drops the copy, always, also after a failure
+#
+# The copy holds production data: it stays on the production server, in the same security
+# boundary, and lives for the duration of this job only. The service connection needs the rights
+# to create and delete databases on that server; give it to a separate identity than the deploy.
+#
+# The baseline (the release that is in production) is the artifact of the last run tagged
+# 'production'. The production stage adds that tag after a successful deployment.
+
+parameters:
+  - name: serviceConnection
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: sqlServer
+    type: string
+  - name: productionDatabase
+    type: string
+  - name: mode
+    type: string
+    default: Copy
+    values: [Copy, Empty]
+  - name: artifactName
+    type: string
+    default: database
+  - name: dependsOn
+    type: object
+    default: []
+
+jobs:
+  - job: RehearseSchemaUpdate
+    displayName: Rehearse the schema update on a copy of production
+    dependsOn: ${{ parameters.dependsOn }}
+    pool:
+      vmImage: ubuntu-latest
+    # A copy of a large database can take a while; the job removes it in its last step.
+    timeoutInMinutes: 180
+    steps:
+      - checkout: none
+
+      - download: current
+        artifact: ${{ parameters.artifactName }}
+
+      - task: DownloadPipelineArtifact@2
+        displayName: Download the baseline (the release in production)
+        inputs:
+          source: specific
+          project: $(System.TeamProjectId)
+          pipeline: $(System.DefinitionId)
+          runVersion: latestFromBranch
+          runBranch: refs/heads/main
+          tags: production
+          artifact: ${{ parameters.artifactName }}
+          path: $(Pipeline.Workspace)/baseline
+
+      - script: dotnet tool install --global microsoft.sqlpackage
+        displayName: Install SqlPackage
+
+      - task: AzureCLI@2
+        displayName: Create the rehearsal database
+        inputs:
+          azureSubscription: ${{ parameters.serviceConnection }}
+          scriptType: pscore
+          scriptLocation: inlineScript
+          # Also sets the pipeline variable RehearsalDatabase.
+          inlineScript: |
+            & '$(Pipeline.Workspace)/${{ parameters.artifactName }}/scripts/New-RehearsalDatabase.ps1' `
+                -ResourceGroup '${{ parameters.resourceGroup }}' `
+                -Server '${{ parameters.sqlServer }}' `
+                -SourceDatabase '${{ parameters.productionDatabase }}' `
+                -BuildId '$(Build.BuildId)' `
+                -Mode '${{ parameters.mode }}'
+
+      - task: AzureCLI@2
+        displayName: Rehearse
+        inputs:
+          azureSubscription: ${{ parameters.serviceConnection }}
+          scriptType: pscore
+          scriptLocation: inlineScript
+          # Exit 0 passed, warnings end as SucceededWithIssues, 2 blocked, 3 could not run.
+          inlineScript: |
+            $artifact = '$(Pipeline.Workspace)/${{ parameters.artifactName }}'
+            & "$artifact/scripts/Invoke-SchemaRehearsal.ps1" `
+                -Server '${{ parameters.sqlServer }}' `
+                -Database '$(RehearsalDatabase)' `
+                -ArtifactPath "$artifact/dacpacs" `
+                -BaselineArtifactPath '$(Pipeline.Workspace)/baseline/dacpacs' `
+                -Mode '${{ parameters.mode }}' `
+                -CapturedColumnsPath "$artifact/database/cdc/captured-columns.json" `
+                -OutputPath '$(Build.ArtifactStagingDirectory)/rehearsal' `
+                -BuildNumber '$(Build.BuildNumber)'
+            exit $LASTEXITCODE
+
+      - task: AzureCLI@2
+        displayName: Remove the rehearsal database
+        condition: always()
+        inputs:
+          azureSubscription: ${{ parameters.serviceConnection }}
+          scriptType: pscore
+          scriptLocation: inlineScript
+          inlineScript: |
+            & '$(Pipeline.Workspace)/${{ parameters.artifactName }}/scripts/Remove-RehearsalDatabase.ps1' `
+                -ResourceGroup '${{ parameters.resourceGroup }}' `
+                -Server '${{ parameters.sqlServer }}' `
+                -Name '${{ parameters.productionDatabase }}-rehearsal-$(Build.BuildId)'
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish the rehearsal reports
+        condition: always()
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)
+          artifact: rehearsal-reports-$(System.JobAttempt)

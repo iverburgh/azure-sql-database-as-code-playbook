@@ -1,0 +1,69 @@
+# Builds the dacpacs and checks the generated files. Every stage that deploys uses the artifact of
+# this job, so what was rehearsed and approved is exactly what reaches production.
+#
+# The artifact mirrors the repository layout, so the scripts find their defaults:
+#   dacpacs/                         every built .dacpac
+#   database/environments.json       what each environment gets
+#   database/publish/                the publish profile of the schema dacpac
+#   database/cdc/                    the captured columns
+#   scripts/                         the deployment and rehearsal scripts
+
+parameters:
+  - name: artifactName
+    type: string
+    default: database
+  - name: configuration
+    type: string
+    default: Release
+
+jobs:
+  - job: BuildDacpacs
+    displayName: Build dacpacs
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - checkout: self
+        fetchDepth: 1
+
+      - task: UseDotNet@2
+        displayName: Use the .NET SDK from global.json
+        inputs:
+          useGlobalJson: true
+
+      # Microsoft.Build.Sql builds a dacpac on any OS; no Visual Studio or Windows agent needed.
+      # The build number becomes the dacpac version, so every deployed model says where it came from.
+      - script: dotnet build database/build.proj --configuration ${{ parameters.configuration }} -p:Version=$(Build.BuildNumber)
+        displayName: Build the SQL projects
+
+      - pwsh: ./scripts/New-MigrationScripts.ps1 -Check
+        displayName: Check the generated migration scripts
+
+      - pwsh: ./scripts/Update-ColumnDescriptions.ps1 -Check -DacpacPath database/Shop.Database/bin/${{ parameters.configuration }}/Shop.Database.dacpac
+        displayName: Check the column descriptions
+
+      - task: CopyFiles@2
+        displayName: Collect the dacpacs
+        inputs:
+          SourceFolder: database
+          Contents: '**/bin/${{ parameters.configuration }}/*.dacpac'
+          TargetFolder: $(Build.ArtifactStagingDirectory)/dacpacs
+          flattenFolders: true
+
+      - task: CopyFiles@2
+        displayName: Collect the deployment configuration and scripts
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)
+          Contents: |
+            database/environments.json
+            database/publish/**
+            database/cdc/**
+            scripts/*.ps1
+            scripts/lib/**
+            scripts/schemas/**
+          TargetFolder: $(Build.ArtifactStagingDirectory)
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish the artifact
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)
+          artifact: ${{ parameters.artifactName }}

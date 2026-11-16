@@ -1,0 +1,5 @@
+# Git hooks run under sh, which fails on CRLF line endings.
+.githooks/* text eol=lf
+# SQL files: the generators write LF, and SQLCMD includes (:r) must look the same on every platform,
+# so the drift checks (-Check) compare identical text on Windows and Linux.
+*.sql text eol=lf

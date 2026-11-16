@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.Build.Sql">
+  <!--
+    Drops every user object, so the next steps rebuild the database from scratch. Only for
+    environments marked "dropAll" in database/environments.json, never for protected ones, never on
+    pull requests. As a last guard, the script refuses to run unless /v:ConfirmDropAll=<database name>
+    names the database it runs against.
+  -->
+  <PropertyGroup>
+    <Name>Shop.Database.DropAll</Name>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Build Remove="**\*.sql" />
+    <PostDeploy Include="Scripts\Script.PostDeployment.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <SqlCmdVariable Include="ConfirmDropAll">
+      <DefaultValue></DefaultValue>
+      <Value>$(SqlCmdVar__2)</Value>
+    </SqlCmdVariable>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "captured-columns.schema.json",
+  "title": "Columns captured by change data capture",
+  "description": "The columns that a capture instance reads, per table. Owned by the consumer of the change feed; scripts/Test-CdcColumnChanges.ps1 and the schema rehearsal check changes to them.",
+  "type": "object",
+  "required": ["tables"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "owner": { "description": "Who owns this list and recreates the capture instances.", "type": "string" },
+    "tables": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[^.]+\\.[^.]+$" },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

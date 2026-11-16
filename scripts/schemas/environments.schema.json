@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "environments.schema.json",
+  "title": "Database deployment environments",
+  "description": "Which dacpacs scripts/Publish-Database.ps1 deploys to each environment.",
+  "type": "object",
+  "required": ["environments"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "environments": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["seedConfiguration", "testData", "allowDropAll", "protected"],
+        "additionalProperties": false,
+        "properties": {
+          "seedConfiguration": {
+            "description": "Suffix of the SeedConfiguration.<name> project to deploy.",
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+          },
+          "testData": { "description": "Deploy the TestData project.", "type": "boolean" },
+          "allowDropAll": { "description": "Allow -DropAll to empty the database first.", "type": "boolean" },
+          "protected": { "description": "Holds real data: testData and allowDropAll must be false.", "type": "boolean" }
+        },
+        "if": { "properties": { "protected": { "const": true } } },
+        "then": {
+          "properties": {
+            "testData": { "const": false },
+            "allowDropAll": { "const": false }
+          }
+        }
+      }
+    }
+  }
+}

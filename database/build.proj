@@ -1,0 +1,26 @@
+<Project DefaultTargets="Build">
+  <!--
+    Builds every SQL project in this folder: dotnet build database/build.proj
+    A plain MSBuild file instead of a solution, because solution files skip project types they do
+    not know. Pass -p:Version=<build number> to stamp the dacpacs.
+  -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SqlProject Include="**\*.sqlproj" Exclude="**\bin\**;**\obj\**" />
+  </ItemGroup>
+
+  <Target Name="Restore">
+    <MSBuild Projects="@(SqlProject)" Targets="Restore" Properties="Configuration=$(Configuration)" BuildInParallel="true" />
+  </Target>
+
+  <Target Name="Build">
+    <MSBuild Projects="@(SqlProject)" Targets="Build" Properties="Configuration=$(Configuration)" BuildInParallel="true" />
+  </Target>
+
+  <Target Name="Clean">
+    <MSBuild Projects="@(SqlProject)" Targets="Clean" Properties="Configuration=$(Configuration)" />
+  </Target>
+</Project>

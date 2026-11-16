@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    name: Build dacpacs and test scripts
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build the SQL projects
+        run: dotnet build database/build.proj --configuration Release
+
+      - name: Check the generated migration scripts
+        shell: pwsh
+        run: ./scripts/New-MigrationScripts.ps1 -Check
+
+      - name: Check the column descriptions against the built dacpac
+        shell: pwsh
+        run: ./scripts/Update-ColumnDescriptions.ps1 -Check -DacpacPath database/Shop.Database/bin/Release/Shop.Database.dacpac
+
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path ./scripts/tests -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+  leak-check:
+    name: No internal references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Scan for organisation-specific references
+        shell: pwsh
+        run: ./tools/Test-NoInternalReferences.ps1
+        env:
+          # Names that must never be published live in a secret, not in the repository.
+          FORBIDDEN_TERMS: ${{ secrets.FORBIDDEN_TERMS }}
+
+  links:
+    name: Documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check relative links and anchors
+        shell: pwsh
+        run: ./tools/Test-DocumentationLinks.ps1

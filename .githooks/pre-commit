@@ -1,0 +1,49 @@
+#!/bin/sh
+# Sample pre-commit hook. When a staged change touches a migration or the column descriptions, it
+#   1. regenerates the migration runner scripts and checks the migration rules;
+#   2. regenerates the extended-property SQL from ColumnDescriptions.json;
+# and stops the commit when that changed a file, so you review the result and stage it yourself.
+#
+# Enable it once per clone:   git config core.hooksPath .githooks
+# Skip it for one commit:     git commit --no-verify
+#
+# It does not build the dacpac, so it cannot find a column that has no description yet; CI builds
+# and runs scripts/Update-ColumnDescriptions.ps1 -Check with the built dacpac.
+
+changed=$(git diff --cached --name-only --diff-filter=ACMRD -- \
+    'database/Shop.Database.Migrations/' \
+    'database/Shop.Database/ColumnDescriptions.json' \
+    'database/Shop.Database/Generated/' \
+    'scripts/lib/')
+
+if [ -z "$changed" ]; then
+    exit 0
+fi
+
+if ! command -v pwsh >/dev/null 2>&1; then
+    echo "pre-commit: pwsh (PowerShell 7.2+) not found; skipping the database checks." >&2
+    exit 0
+fi
+
+echo "pre-commit: regenerating the migration runner scripts..."
+if ! pwsh -NoProfile -NonInteractive -File scripts/New-MigrationScripts.ps1; then
+    echo "pre-commit: fix the migration errors above, or commit with --no-verify to skip this check." >&2
+    exit 1
+fi
+
+echo "pre-commit: regenerating the column descriptions SQL..."
+if ! pwsh -NoProfile -NonInteractive -File scripts/Update-ColumnDescriptions.ps1; then
+    echo "pre-commit: the generator failed; fix the errors above." >&2
+    exit 1
+fi
+
+# Generated files that differ from what is staged: modified, deleted or new.
+generated='database/Shop.Database.Migrations/Scripts/Generated/ database/Shop.Database/Generated/'
+pending=$( (git diff --name-only -- $generated; \
+            git ls-files --others --exclude-standard -- $generated) | sort -u)
+if [ -n "$pending" ]; then
+    echo "pre-commit: generated files changed:" >&2
+    printf '  %s\n' $pending >&2
+    echo "pre-commit: review them, stage them with git add and commit again." >&2
+    exit 1
+fi

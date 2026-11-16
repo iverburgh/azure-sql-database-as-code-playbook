@@ -1,0 +1,86 @@
+# Sample pipeline: build once, deploy the same artifact everywhere.
+#
+#   Build       build the dacpacs, check the generated files, publish the artifact
+#   Test        deploy to Test (with test data)
+#   Rehearse    rehearse the schema update on a copy of production
+#   Production  deploy to Production after the approvals on the Azure DevOps environment
+#
+# Replace the my-* names, the service connections and the Azure DevOps environments with yours.
+
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - database/*
+      - scripts/*
+      - pipelines/*
+
+pr:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - database/*
+      - scripts/*
+      - pipelines/*
+
+variables:
+  isMain: ${{ eq(variables['Build.SourceBranch'], 'refs/heads/main') }}
+
+stages:
+  - stage: Build
+    jobs:
+      - template: templates/build-dacpacs.yml
+
+  - stage: Test
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables.isMain, true))
+    jobs:
+      - template: templates/deploy-database.yml
+        parameters:
+          environment: Test
+          azureDevOpsEnvironment: shop-test
+          serviceConnection: my-shop-test-deploy
+          sqlServer: my-sql-test
+          database: my-shop
+
+  - stage: Rehearse
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables.isMain, true))
+    jobs:
+      - template: templates/rehearse-schema-update.yml
+        parameters:
+          serviceConnection: my-shop-prod-rehearsal
+          resourceGroup: my-rg
+          sqlServer: my-sql-prod
+          productionDatabase: my-shop
+
+  - stage: Production
+    dependsOn: [Test, Rehearse]
+    # SucceededWithIssues (rehearsal warnings) still continues: the approver reads the report.
+    condition: and(in(dependencies.Test.result, 'Succeeded'), in(dependencies.Rehearse.result, 'Succeeded', 'SucceededWithIssues'))
+    jobs:
+      - template: templates/deploy-database.yml
+        parameters:
+          environment: Production
+          azureDevOpsEnvironment: shop-production
+          serviceConnection: my-shop-prod-deploy
+          sqlServer: my-sql-prod
+          database: my-shop
+          # Compare production with the release it should be running before changing it. Set to
+          # false for the very first release, when no run is tagged 'production' yet.
+          checkDrift: true
+
+      # The next rehearsal and drift check compare against what is in production now.
+      - job: TagRelease
+        displayName: Tag this run as the production baseline
+        dependsOn: Deploy_Production
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: none
+          - script: echo "##vso[build.addbuildtag]production"
+            displayName: Add the production tag

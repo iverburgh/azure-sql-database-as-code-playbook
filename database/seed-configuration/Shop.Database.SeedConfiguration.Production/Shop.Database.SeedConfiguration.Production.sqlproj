@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.Build.Sql">
+  <!--
+    Configuration rows for the Production environment only. Each environment has its own project,
+    so the values are reviewed in pull requests and an environment can never get another one's rows.
+    Published after the reference data. Never put secrets here: those belong in Key Vault.
+  -->
+  <PropertyGroup>
+    <Name>Shop.Database.SeedConfiguration.Production</Name>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Build Remove="**\*.sql" />
+    <PostDeploy Include="Scripts\Script.PostDeployment.sql" />
+    <None Include="Scripts\**\*.sql" Exclude="Scripts\Script.PostDeployment.sql" />
+  </ItemGroup>
+</Project>

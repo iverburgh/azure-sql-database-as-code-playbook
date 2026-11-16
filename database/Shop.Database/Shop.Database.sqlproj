@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.Build.Sql">
+  <!--
+    The schema: tables, views, keys, indexes and column descriptions, declared as the desired state.
+    sqlpackage compares this model with the target database and generates the ALTER statements.
+  -->
+  <PropertyGroup>
+    <Name>Shop.Database</Name>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Files included with :r are script text, not schema objects. -->
+    <Build Remove="Scripts\**" />
+    <PostDeploy Include="Scripts\Script.PostDeployment.sql" />
+    <None Include="Scripts\**\*.sql" Exclude="Scripts\Script.PostDeployment.sql" />
+    <!-- The source of the generated Generated\ColumnDescriptions.sql; see scripts/Update-ColumnDescriptions.ps1. -->
+    <None Include="ColumnDescriptions.json" />
+  </ItemGroup>
+</Project>

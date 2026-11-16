@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.Build.Sql">
+  <!--
+    Reference data that every environment needs and that the application code relies on, such as
+    order statuses. Published after the schema, on every environment, including production.
+    Each script is an idempotent MERGE on fixed keys: it runs again on every release.
+  -->
+  <PropertyGroup>
+    <Name>Shop.Database.ReferenceData</Name>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Build Remove="**\*.sql" />
+    <PostDeploy Include="Scripts\Script.PostDeployment.sql" />
+    <None Include="Scripts\**\*.sql" Exclude="Scripts\Script.PostDeployment.sql" />
+  </ItemGroup>
+</Project>

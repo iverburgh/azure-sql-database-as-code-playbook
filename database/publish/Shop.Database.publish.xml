@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Publish profile for the schema dacpac (Shop.Database). Only the schema step uses it; the
+  script-only dacpacs (migrations, seeds) are published with explicit properties instead, see
+  scripts/lib/Deployment.ps1. Every setting here is a deliberate choice; see
+  docs/pipeline-and-deployment.md.
+-->
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- Stop instead of losing data. A column or table can only be dropped in a later release,
+         after a migration has emptied or moved it (expand and contract). -->
+    <BlockOnPossibleDataLoss>True</BlockOnPossibleDataLoss>
+    <!-- Never copy a whole table into a new one to make a change: that locks the table, floods
+         the transaction log and breaks change data capture on it. -->
+    <AllowTableRecreation>False</AllowTableRecreation>
+    <!-- A column added in the middle of a table in the project must not force a rebuild. -->
+    <IgnoreColumnOrder>True</IgnoreColumnOrder>
+
+    <!-- The project is the desired state: objects that are not in it are dropped... -->
+    <DropObjectsNotInSource>True</DropObjectsNotInSource>
+    <!-- ...except security and server objects, which the platform owns (users for managed
+         identities, role memberships, permissions, credentials). -->
+    <DoNotDropObjectTypes>Users;Logins;DatabaseRoles;ApplicationRoles;RoleMembership;Permissions;ServerRoleMembership;ServerRoles;Credentials;DatabaseScopedCredentials;ExternalDataSources;MasterKeys;DatabaseAuditSpecifications;SecurityPolicies</DoNotDropObjectTypes>
+
+    <!-- Database options (collation, compatibility level, ...) are set by the infrastructure code. -->
+    <ScriptDatabaseOptions>False</ScriptDatabaseOptions>
+    <!-- Adding a NOT NULL column to a table with rows must fail unless the project gives it a default. -->
+    <GenerateSmartDefaults>False</GenerateSmartDefaults>
+    <!-- Wrap the generated change script in a transaction where SQL Server allows it. -->
+    <IncludeTransactionalScripts>True</IncludeTransactionalScripts>
+
+    <!-- Leave change data capture objects alone (this is the default, stated for clarity):
+         capture instances are managed by their owner, not by the schema deployment. -->
+    <DoNotAlterChangeDataCaptureObjects>True</DoNotAlterChangeDataCaptureObjects>
+
+    <!-- Data classification is owned by a governance team, not by this project: never remove or
+         change sensitivity classifications that were set outside it. -->
+    <IgnoreSensitivityClassifications>True</IgnoreSensitivityClassifications>
+  </PropertyGroup>
+</Project>

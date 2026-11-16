@@ -1,0 +1,11 @@
+bin/
+obj/
+TestResults/
+*.user
+.vs/
+# Deploy reports, change scripts and rehearsal reports written by the scripts when run locally.
+deploy-reports/
+rehearsal-reports/
+# Organisation-specific terms for the leak check. Never commit this file: it would publish exactly
+# the names it keeps out.
+tools/forbidden-terms.local.txt

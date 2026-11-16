@@ -1,0 +1,86 @@
+{
+  "$schema": "../../scripts/schemas/column-descriptions.schema.json",
+  "standardColumns": {
+    "CreatedAt": "Moment the row was created.",
+    "ModifiedAt": "Moment the row was last changed; empty when it never changed.",
+    "ModifiedBy": "Identity of the user or process that last changed the row."
+  },
+  "excludedTables": [
+    "dbo.DeploymentHistory"
+  ],
+  "tables": {
+    "Catalog.Product": {
+      "description": "A product that customers can order.",
+      "columns": {
+        "CreatedAt": "Moment the row was created.",
+        "ModifiedAt": "Moment the row was last changed; empty when it never changed.",
+        "ModifiedBy": "Identity of the user or process that last changed the row.",
+        "Name": "Name of the product as shown in the shop.",
+        "ProductCategoryId": "Reference to Catalog.ProductCategory.",
+        "ProductId": "Unique identifier of the product.",
+        "Sku": "Stock keeping unit: the code that identifies the product in the warehouse.",
+        "UnitPrice": "Current price of one unit, excluding tax."
+      }
+    },
+    "Catalog.ProductCategory": {
+      "description": "A group of products. Reference data owned by the code.",
+      "columns": {
+        "Code": "Stable code of the category, used by the application.",
+        "Name": "Display name of the category.",
+        "ProductCategoryId": "Unique identifier of the product category."
+      }
+    },
+    "Config.PaymentProvider": {
+      "description": "A payment provider the shop can use. Seeded per environment.",
+      "columns": {
+        "BaseUrl": "Base address of the provider's API in this environment.",
+        "IsEnabled": "Whether the shop offers this provider to customers.",
+        "Name": "Display name of the provider.",
+        "PaymentProviderId": "Unique identifier of the payment provider."
+      }
+    },
+    "Sales.Customer": {
+      "description": "A person or organisation that places orders.",
+      "columns": {
+        "CreatedAt": "Moment the row was created.",
+        "CustomerId": "Unique identifier of the customer.",
+        "DisplayName": "Name of the customer as shown in the shop.",
+        "EmailAddress": "E-mail address the customer signs in with and receives order mail on.",
+        "ModifiedAt": "Moment the row was last changed; empty when it never changed.",
+        "ModifiedBy": "Identity of the user or process that last changed the row."
+      }
+    },
+    "Sales.Order": {
+      "description": "An order placed by a customer.",
+      "columns": {
+        "CreatedAt": "Moment the row was created.",
+        "CurrencyCode": "ISO 4217 code of the currency of all amounts in the order.",
+        "CustomerId": "Reference to Sales.Customer.",
+        "ModifiedAt": "Moment the row was last changed; empty when it never changed.",
+        "ModifiedBy": "Identity of the user or process that last changed the row.",
+        "Note": "Free text the customer added to the order.",
+        "OrderId": "Unique identifier of the order.",
+        "OrderStatusId": "Reference to Sales.OrderStatus.",
+        "OrderedAt": "Moment the customer placed the order."
+      }
+    },
+    "Sales.OrderLine": {
+      "description": "One product in an order.",
+      "columns": {
+        "OrderId": "Reference to Sales.Order.",
+        "OrderLineId": "Unique identifier of the order line.",
+        "ProductId": "Reference to Catalog.Product.",
+        "Quantity": "Number of units ordered; always more than zero.",
+        "UnitPrice": "Price of one unit at the moment the order was placed."
+      }
+    },
+    "Sales.OrderStatus": {
+      "description": "The stage an order is in. Reference data owned by the code.",
+      "columns": {
+        "Code": "Stable code of the status, used by the application.",
+        "Name": "Display name of the status.",
+        "OrderStatusId": "Unique identifier of the order status."
+      }
+    }
+  }
+}

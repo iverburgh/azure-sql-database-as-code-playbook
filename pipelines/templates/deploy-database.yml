@@ -1,0 +1,112 @@
+# Deploys the database artifact to one environment.
+#
+# 1. A planning step runs Publish-Database.ps1 -WhatIf: deploy report, change scripts and a list of
+#    blockers, published as an artifact so a reviewer can read exactly what will run.
+# 2. The deploy step publishes the dacpacs in order. A blocker (possible data loss, a table rebuild)
+#    stops it before the schema is changed.
+#
+# The service connection's identity must be a database user with the rights to change the schema
+# (for example db_owner, or db_ddladmin plus data rights). The script asks az for an access token,
+# so no password or connection string is stored anywhere.
+
+parameters:
+  - name: environment
+    type: string # The name in database/environments.json, for example Test.
+  - name: azureDevOpsEnvironment
+    type: string # The Azure DevOps environment that holds the approvals and checks.
+  - name: serviceConnection
+    type: string
+  - name: sqlServer
+    type: string # The logical server name without .database.windows.net.
+  - name: database
+    type: string
+  - name: artifactName
+    type: string
+    default: database
+  # Compare the database with the schema dacpac of the last run tagged 'production' first, and stop
+  # when it was changed outside the pipeline.
+  - name: checkDrift
+    type: boolean
+    default: false
+  - name: dependsOn
+    type: object
+    default: []
+
+jobs:
+  - deployment: Deploy_${{ parameters.environment }}
+    displayName: Deploy database to ${{ parameters.environment }}
+    dependsOn: ${{ parameters.dependsOn }}
+    pool:
+      vmImage: ubuntu-latest
+    environment: ${{ parameters.azureDevOpsEnvironment }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - download: current
+              artifact: ${{ parameters.artifactName }}
+
+            - ${{ if parameters.checkDrift }}:
+                - task: DownloadPipelineArtifact@2
+                  displayName: Download the release that is deployed now
+                  inputs:
+                    source: specific
+                    project: $(System.TeamProjectId)
+                    pipeline: $(System.DefinitionId)
+                    runVersion: latestFromBranch
+                    runBranch: refs/heads/main
+                    tags: production
+                    artifact: ${{ parameters.artifactName }}
+                    path: $(Pipeline.Workspace)/baseline
+
+            - script: dotnet tool install --global microsoft.sqlpackage
+              displayName: Install SqlPackage
+
+            - task: AzureCLI@2
+              displayName: Plan (deploy report and scripts, nothing is changed)
+              inputs:
+                azureSubscription: ${{ parameters.serviceConnection }}
+                scriptType: pscore
+                scriptLocation: inlineScript
+                inlineScript: |
+                  $artifact = '$(Pipeline.Workspace)/${{ parameters.artifactName }}'
+                  & "$artifact/scripts/Publish-Database.ps1" `
+                      -ArtifactPath "$artifact/dacpacs" `
+                      -Environment '${{ parameters.environment }}' `
+                      -Server '${{ parameters.sqlServer }}' `
+                      -Database '${{ parameters.database }}' `
+                      -BuildNumber '$(Build.BuildNumber)' `
+                      -OutputPath '$(Build.ArtifactStagingDirectory)/plan' `
+                      -WhatIf
+
+            - task: AzureCLI@2
+              displayName: Deploy
+              # A transient failure (a scaling operation, a failover) is worth one more try: every
+              # step is idempotent, and applied migrations are recorded, so a retry is safe.
+              retryCountOnTaskFailure: 1
+              inputs:
+                azureSubscription: ${{ parameters.serviceConnection }}
+                scriptType: pscore
+                scriptLocation: inlineScript
+                inlineScript: |
+                  $artifact = '$(Pipeline.Workspace)/${{ parameters.artifactName }}'
+                  $parameters = @{
+                      ArtifactPath = "$artifact/dacpacs"
+                      Environment  = '${{ parameters.environment }}'
+                      Server       = '${{ parameters.sqlServer }}'
+                      Database     = '${{ parameters.database }}'
+                      BuildNumber  = '$(Build.BuildNumber)'
+                      OutputPath   = '$(Build.ArtifactStagingDirectory)/deploy'
+                  }
+                  if ([bool]::Parse('${{ parameters.checkDrift }}')) {
+                      $parameters.DriftBaselineDacpac = '$(Pipeline.Workspace)/baseline/dacpacs/Shop.Database.dacpac'
+                      $parameters.FailOnDrift = $true
+                  }
+                  & "$artifact/scripts/Publish-Database.ps1" @parameters
+
+            - task: PublishPipelineArtifact@1
+              displayName: Publish the deploy reports
+              condition: always()
+              inputs:
+                targetPath: $(Build.ArtifactStagingDirectory)
+                artifact: database-reports-${{ parameters.environment }}-$(System.JobAttempt)
